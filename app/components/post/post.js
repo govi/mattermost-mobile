@@ -4,6 +4,7 @@
 import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
 import {
+    Keyboard,
     Platform,
     TouchableHighlight,
     View,
@@ -42,6 +43,7 @@ export default class Post extends PureComponent {
         renderReplies: PropTypes.bool,
         isFirstReply: PropTypes.bool,
         isLastReply: PropTypes.bool,
+        isLastPost: PropTypes.bool,
         consecutivePost: PropTypes.bool,
         hasComments: PropTypes.bool,
         isSearchResult: PropTypes.bool,
@@ -63,6 +65,7 @@ export default class Post extends PureComponent {
         skipPinnedHeader: PropTypes.bool,
         isCommentMention: PropTypes.bool,
         location: PropTypes.string,
+        isBot: PropTypes.bool,
     };
 
     static defaultProps = {
@@ -76,6 +79,12 @@ export default class Post extends PureComponent {
     static contextTypes = {
         intl: intlShape.isRequired,
     };
+
+    constructor(props) {
+        super(props);
+
+        this.postBodyRef = React.createRef();
+    }
 
     goToUserProfile = () => {
         const {intl} = this.context;
@@ -96,11 +105,14 @@ export default class Post extends PureComponent {
             },
         };
 
-        if (Platform.OS === 'ios') {
-            navigator.push(options);
-        } else {
-            navigator.showModal(options);
-        }
+        Keyboard.dismiss();
+        requestAnimationFrame(() => {
+            if (Platform.OS === 'ios') {
+                navigator.push(options);
+            } else {
+                navigator.showModal(options);
+            }
+        });
     };
 
     autofillUserMention = (username) => {
@@ -227,8 +239,8 @@ export default class Post extends PureComponent {
     });
 
     showPostOptions = () => {
-        if (this.refs.postBody) {
-            this.refs.postBody.getWrappedInstance().showPostOptions();
+        if (this.postBodyRef?.current) {
+            this.postBodyRef.current.showPostOptions();
         }
     };
 
@@ -237,11 +249,13 @@ export default class Post extends PureComponent {
             channelIsReadOnly,
             commentedOnPost,
             highlight,
+            isLastPost,
             isLastReply,
             isSearchResult,
             onHashtagPress,
             onPermalinkPress,
             post,
+            isBot,
             renderReplies,
             shouldRenderReplyButton,
             showAddReaction,
@@ -266,7 +280,7 @@ export default class Post extends PureComponent {
         const isReplyPost = this.isReplyPost();
         const onUsernamePress =
             Config.ExperimentalUsernamePressIsMention && !channelIsReadOnly ? this.autofillUserMention : this.viewUserProfile;
-        const mergeMessage = consecutivePost && !hasComments;
+        const mergeMessage = consecutivePost && !hasComments && !isBot;
         const highlightFlagged = isFlagged && !skipFlaggedHeader;
         const hightlightPinned = post.is_pinned && !skipPinnedHeader;
 
@@ -333,9 +347,10 @@ export default class Post extends PureComponent {
                         <View style={rightColumnStyle}>
                             {postHeader}
                             <PostBody
-                                ref={'postBody'}
+                                ref={this.postBodyRef}
                                 highlight={highlight}
                                 channelIsReadOnly={channelIsReadOnly}
+                                isLastPost={isLastPost}
                                 isSearchResult={isSearchResult}
                                 navigator={this.props.navigator}
                                 onFailedPostPress={this.handleFailedPostPress}

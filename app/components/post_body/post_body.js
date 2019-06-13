@@ -4,6 +4,7 @@
 import React, {PureComponent} from 'react';
 import PropTypes from 'prop-types';
 import {
+    Keyboard,
     ScrollView,
     TouchableOpacity,
     View,
@@ -24,6 +25,8 @@ import {getMarkdownTextStyles, getMarkdownBlockStyles} from 'app/utils/markdown'
 import {preventDoubleTap} from 'app/utils/tap';
 import {changeOpacity, makeStyleSheetFromTheme} from 'app/utils/theme';
 
+import telemetry from 'app/telemetry';
+
 let FileAttachmentList;
 let PostAddChannelMember;
 let PostBodyAdditionalContent;
@@ -43,6 +46,7 @@ export default class PostBody extends PureComponent {
         highlight: PropTypes.bool,
         isFailed: PropTypes.bool,
         isFlagged: PropTypes.bool,
+        isLastPost: PropTypes.bool,
         isPending: PropTypes.bool,
         isPostAddChannelMember: PropTypes.bool,
         isPostEphemeral: PropTypes.bool,
@@ -74,6 +78,7 @@ export default class PostBody extends PureComponent {
         onFailedPostPress: emptyFunction,
         onPress: emptyFunction,
         replyBarStyle: [],
+        message: '',
     };
 
     static contextTypes = {
@@ -95,14 +100,30 @@ export default class PostBody extends PureComponent {
         isLongPost: false,
     };
 
+    logTelemetry = () => {
+        telemetry.end([
+            'channel:switch_initial',
+            'channel:switch_loaded',
+            'post_list:permalink',
+            'post_list:thread',
+            'team:switch',
+            'start:overall',
+        ]);
+        telemetry.save();
+    }
+
     measurePost = (event) => {
         const {height} = event.nativeEvent.layout;
         const {showLongPost} = this.props;
 
-        if (!showLongPost && height >= this.state.maxHeight) {
+        if (!showLongPost) {
             this.setState({
-                isLongPost: true,
+                isLongPost: height >= this.state.maxHeight,
             });
+        }
+
+        if (this.props.isLastPost) {
+            this.logTelemetry();
         }
     };
 
@@ -184,7 +205,10 @@ export default class PostBody extends PureComponent {
             },
         };
 
-        navigator.showModal(options);
+        Keyboard.dismiss();
+        requestAnimationFrame(() => {
+            navigator.showModal(options);
+        });
     };
 
     renderAddChannelMember = (style, messageStyle, textStyles) => {
@@ -252,6 +276,7 @@ export default class PostBody extends PureComponent {
 
     renderPostAdditionalContent = (blockStyles, messageStyle, textStyles) => {
         const {
+            isPostEphemeral,
             isReplyPost,
             isSystemMessage,
             message,
@@ -263,7 +288,7 @@ export default class PostBody extends PureComponent {
             postProps,
         } = this.props;
 
-        if (isSystemMessage) {
+        if (isSystemMessage && !isPostEphemeral) {
             return null;
         }
 
@@ -395,7 +420,7 @@ export default class PostBody extends PureComponent {
                         baseTextStyle={messageStyle}
                         blockStyles={blockStyles}
                         channelMentions={postProps.channel_mentions}
-                        imageMetadata={metadata?.images}
+                        imagesMetadata={metadata?.images}
                         isEdited={hasBeenEdited}
                         isReplyPost={isReplyPost}
                         isSearchResult={isSearchResult}
@@ -418,6 +443,7 @@ export default class PostBody extends PureComponent {
                         scrollEnabled={false}
                         showsVerticalScrollIndicator={false}
                         showsHorizontalScrollIndicator={false}
+                        keyboardShouldPersistTaps={'always'}
                     >
                         {messageComponent}
                     </ScrollView>
